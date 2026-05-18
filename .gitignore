@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+segment_output.csv
+.DS_Store
