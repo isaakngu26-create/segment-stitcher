@@ -4,3 +4,4 @@ __pycache__/
 .venv/
 segment_output.csv
 .DS_Store
+.env

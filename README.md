@@ -28,8 +28,36 @@ streamlit run src/app.py
 
 - Upload one or more SEC filings in PDF format
 - The app extracts segments, matches segment definitions, detects definition changes, and constructs a time-series table
+- The reconciliation layer uses OpenAI to infer canonical segment labels and explain segment renames
 - Download the reconciled result as CSV
+
+## OpenAI integration
+
+If you set `OPENAI_API_KEY` in your environment, the app will use the OpenAI API to perform segment reconciliation using a JSON schema-grounded prompt. If the key is missing, the app falls back to TF-IDF matching.
+
+Example:
+```bash
+export OPENAI_API_KEY="your-api-key"
+streamlit run src/app.py
+```
+
+On Streamlit Community Cloud, add `OPENAI_API_KEY` to the app secrets.
+
+## Streamlit Cloud deployment
+
+1. Push this repository to GitHub
+2. Open https://share.streamlit.io
+3. Select `isaakngu26-create/segment-stitcher`
+4. Set branch to `main` and main file to `src/app.py`
+5. Add `OPENAI_API_KEY` as a secret if you want LLM-backed reconciliation
+
+## Testing
+
+Run tests with:
+```bash
+pytest
+```
 
 ## Notes
 
-The current implementation uses PDF extraction heuristics and TF-IDF semantic matching. It is designed as a working scaffold and can be extended for production-grade financial document parsing.
+The project now includes an LLM-backed reconciliation stage, function-calling JSON grounding, and tests to validate the parser logic and fallback behavior.

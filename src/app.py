@@ -4,7 +4,7 @@ from ingestion.pdf_loader import load_pdfs
 from ingestion.metadata_extractor import extract_metadata
 from extraction.table_extractor import extract_segment_tables
 from extraction.definition_extractor import extract_definitions
-from reconciliation.semantic_matcher import match_segments
+from reconciliation import reconcile_segments
 from reconciliation.change_detector import detect_changes
 from output.time_series_builder import build_time_series
 from output.exporter import get_csv_bytes
@@ -25,7 +25,7 @@ if uploaded_files:
 
     segment_tables = extract_segment_tables(filings)
     definitions = extract_definitions(filings)
-    matches = match_segments(segment_tables, definitions)
+    matches, reconciliation = reconcile_segments(segment_tables, definitions)
     changes = detect_changes(filings, definitions)
     time_series = build_time_series(filings, segment_tables, matches)
 
@@ -40,6 +40,14 @@ if uploaded_files:
     for filename, defs in definitions.items():
         st.markdown(f"**{filename}**")
         st.write(defs)
+
+    st.subheader("Reconciliation reasoning")
+    st.write(reconciliation.get("summary", ""))
+    if reconciliation.get("mapping"):
+        st.table(pd.DataFrame(reconciliation["mapping"]))
+    if reconciliation.get("renames"):
+        st.markdown("**Detected renames and aliases**")
+        st.table(pd.DataFrame(reconciliation["renames"]))
 
     st.subheader("Detected segment definition changes")
     if changes:
