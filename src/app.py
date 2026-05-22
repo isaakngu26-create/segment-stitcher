@@ -1,13 +1,13 @@
 import pandas as pd
 import streamlit as st
-from src.ingestion.pdf_loader import load_pdfs
-from src.ingestion.metadata_extractor import extract_metadata
-from src.extraction.table_extractor import extract_segment_tables
-from src.extraction.definition_extractor import extract_definitions
-from src.reconciliation import reconcile_segments
-from src.reconciliation.change_detector import detect_changes
-from src.output.time_series_builder import build_time_series
-from src.output.exporter import get_csv_bytes
+from .ingestion.pdf_loader import load_pdfs
+from .ingestion.metadata_extractor import extract_metadata
+from .extraction.table_extractor import extract_segment_tables
+from .extraction.definition_extractor import extract_definitions
+from .reconciliation import reconcile_segments
+from .reconciliation.change_detector import detect_changes
+from .output.time_series_builder import build_time_series
+from .output.exporter import get_csv_bytes
 
 st.set_page_config(page_title="SegmentStitcher", layout="wide")
 
