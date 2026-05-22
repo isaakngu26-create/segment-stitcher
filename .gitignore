@@ -5,3 +5,4 @@ __pycache__/
 segment_output.csv
 .DS_Store
 .env
+.streamlit/secrets.toml
