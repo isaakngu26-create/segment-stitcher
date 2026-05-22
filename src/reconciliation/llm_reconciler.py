@@ -16,45 +16,42 @@ Return the result via the defined function schema only, without extra prose.
 """
 
 FUNCTION_SCHEMA = {
-    "type": "object",
-    "function": {
-        "name": "reconcile_segments",
-        "description": "Map segment labels to canonical names and identify renames across filings.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "mapping": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "filing": {"type": "string"},
-                            "segment": {"type": "string"},
-                            "canonical": {"type": "string"},
-                            "confidence": {"type": "number"},
-                            "rationale": {"type": "string"},
-                        },
-                        "required": ["filing", "segment", "canonical", "confidence", "rationale"],
+    "name": "reconcile_segments",
+    "description": "Map segment labels to canonical names and identify renames across filings.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "mapping": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "filing": {"type": "string"},
+                        "segment": {"type": "string"},
+                        "canonical": {"type": "string"},
+                        "confidence": {"type": "number"},
+                        "rationale": {"type": "string"},
                     },
+                    "required": ["filing", "segment", "canonical", "confidence", "rationale"],
                 },
-                "renames": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "from_segment": {"type": "string"},
-                            "to_segment": {"type": "string"},
-                            "from_filing": {"type": "string"},
-                            "to_filing": {"type": "string"},
-                            "explanation": {"type": "string"},
-                        },
-                        "required": ["from_segment", "to_segment", "from_filing", "to_filing", "explanation"],
-                    },
-                },
-                "summary": {"type": "string"},
             },
-            "required": ["mapping"],
+            "renames": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "from_segment": {"type": "string"},
+                        "to_segment": {"type": "string"},
+                        "from_filing": {"type": "string"},
+                        "to_filing": {"type": "string"},
+                        "explanation": {"type": "string"},
+                    },
+                    "required": ["from_segment", "to_segment", "from_filing", "to_filing", "explanation"],
+                },
+            },
+            "summary": {"type": "string"},
         },
+        "required": ["mapping"],
     },
 }
 
@@ -139,9 +136,9 @@ def reconcile_segments(tables, definitions):
         ],
         tools=[{
             "type": "function",
-            "function": FUNCTION_SCHEMA["function"]
+            "function": FUNCTION_SCHEMA
         }],
-        tool_choice={"type": "function", "function": {"name": FUNCTION_SCHEMA["function"]["name"]}},
+        tool_choice={"type": "function", "function": {"name": FUNCTION_SCHEMA["name"]}},
         temperature=0.0,
     )
 
