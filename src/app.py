@@ -1,3 +1,41 @@
+from openai import OpenAI
+import json
+import streamlit as st
+
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+system_prompt = """
+[PASTE THE SYSTEM PROMPT WE WROTE EARLIER]
+"""
+def run_segment_stitcher(system_prompt: str, grounding_payload: dict):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": (
+                        "You are given structured segment data for multiple filings.\n"
+                        "Here is the JSON context:\n"
+                        f"{json.dumps(grounding_payload, indent=2)}\n\n"
+                        "Return valid JSON following the schema in the system prompt."
+                    )
+                }
+            ],
+            temperature=0.2
+        )
+
+        raw_output = response.choices[0].message["content"]
+        stitched = json.loads(raw_output)
+        return stitched, raw_output, None
+
+    except json.JSONDecodeError:
+        return None, raw_output, "Model returned invalid JSON."
+
+    except Exception as e:
+        return None, None, str(e)
+
+
 import os
 import sys
 
