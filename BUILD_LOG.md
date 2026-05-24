@@ -4,6 +4,21 @@
 
 # BUILD_LOG
 
+## 2026-05-24 (Continued)
+
+- **Comprehensive grounding pipeline**: Implemented a multi-step pipeline to normalize and structure segment data:
+  - Created `/src/grounding/` module with comprehensive grounding builder
+  - Implemented `normalize_label()`: strips whitespace, removes footnote markers (*, †, §, etc.)
+  - Implemented `is_total_or_elimination()`: filters non-segment rows (Total, Consolidated, Eliminations, etc.)
+  - Implemented `parse_number()`: handles currency symbols, commas, parentheses notation, various missing value indicators
+  - Implemented `extract_numeric_fields()`: extracts revenue, operating_income, and other metrics from raw rows
+  - Implemented `build_grounding_payload()`: assembles normalized, structured JSON ready for LLM reasoning
+- **Enhanced table extraction**: Modified `/src/extraction/table_extractor.py` to track raw segment data (`raw_segments`) for better grounding and normalization
+- **Updated reconciliation interface**: Modified `reconcile_segments()` to accept structured `grounding_payload` parameter while maintaining backward compatibility with old `(tables, definitions)` calling style
+- **Updated app pipeline**: Modified `/src/app.py` to call `build_grounding_payload()` before passing data to LLM, enabling clean, normalized segment data
+- **Comprehensive grounding tests**: Added `/tests/test_grounding.py` with 5 unit tests covering normalization, number parsing, and payload construction (all passing)
+- **Test suite**: All 8 tests pass (5 grounding + 3 existing)
+
 ## 2026-05-24
 
 - **Enhanced system prompt and schema design**: Replaced generic prompt with a comprehensive, domain-specific system prompt that explicitly instructs the LLM to:

@@ -10,6 +10,7 @@ from src.ingestion.pdf_loader import load_pdfs
 from src.ingestion.metadata_extractor import extract_metadata
 from src.extraction.table_extractor import extract_segment_tables
 from src.extraction.definition_extractor import extract_definitions
+from src.grounding import build_grounding_payload
 from src.reconciliation import reconcile_segments
 from src.reconciliation.change_detector import detect_changes
 from src.output.time_series_builder import build_time_series
@@ -31,7 +32,14 @@ if uploaded_files:
 
     segment_tables = extract_segment_tables(filings)
     definitions = extract_definitions(filings)
-    matches, reconciliation = reconcile_segments(segment_tables, definitions)
+    
+    # Build grounding payload for LLM reasoning
+    company_name = filings[0].get("company", "Unknown Company") if filings else "Unknown Company"
+    grounding_payload = build_grounding_payload(company_name, filings, segment_tables)
+    
+    # Reconcile segments using the grounded payload
+    matches, reconciliation = reconcile_segments(grounding_payload=grounding_payload)
+    
     changes = detect_changes(filings, definitions)
     time_series = build_time_series(filings, segment_tables, matches)
 

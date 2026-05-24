@@ -25,6 +25,7 @@ def extract_segment_tables(filings):
     for filing in filings:
         segments = []
         values = []
+        raw_segments = []  # Store raw segment dicts for grounding
 
         with pdfplumber.open(io.BytesIO(filing["raw_bytes"])) as pdf:
             for page in pdf.pages:
@@ -50,6 +51,17 @@ def extract_segment_tables(filings):
                         if numeric_value is not None:
                             segments.append(segment)
                             values.append(numeric_value)
+                            
+                            # Store raw segment data for grounding
+                            raw_segment = {
+                                "label_raw": segment,
+                                "revenue_raw": str(numeric_value),
+                            }
+                            # Store additional columns if available
+                            for idx, cell in enumerate(row[1:], 1):
+                                if cell and idx < len(row):
+                                    raw_segment[f"column_{idx}"] = cell
+                            raw_segments.append(raw_segment)
 
         if not segments:
             # fallback: find segment headers from raw text
@@ -61,10 +73,15 @@ def extract_segment_tables(filings):
                         if value is not None:
                             segments.append(tokens[0])
                             values.append(value)
+                            raw_segments.append({
+                                "label_raw": tokens[0],
+                                "revenue_raw": str(value),
+                            })
 
         findings[filing["filename"]] = {
             "segments": segments,
             "values": values,
+            "raw_segments": raw_segments,
         }
 
     return findings

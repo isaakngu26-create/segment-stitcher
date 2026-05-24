@@ -179,26 +179,63 @@ def _parse_function_response(choice_message):
     return arguments
 
 
-def reconcile_segments(tables, definitions):
-    if not tables or not definitions:
-        return {}, {"summary": "No filings or definitions available.", "mapping": [], "renames": []}
+def reconcile_segments(tables=None, definitions=None, grounding_payload=None):
+    """
+    Reconcile segment labels across filings using OpenAI LLM or TF-IDF fallback.
+    
+    Args:
+        tables: (deprecated) Dict of segment tables keyed by filename
+        definitions: (deprecated) Dict of segment definitions keyed by filename
+        grounding_payload: (preferred) Structured grounding object from build_grounding_payload()
+        
+    Returns:
+        Tuple of (canonical_map, reconciliation_details)
+    """
+    # Handle the case where grounding_payload is provided (preferred path)
+    if grounding_payload is not None:
+        if not _openai_api_key():
+            fallback = tfidf_match_segments(tables or {}, definitions or {})
+            return (
+                fallback,
+                {
+                    "summary": "OPENAI_API_KEY is not configured. Using TF-IDF fallback for segment reconciliation.",
+                    "mapping": [],
+                    "renames": [],
+                },
+            )
 
-    if not _openai_api_key():
-        fallback = tfidf_match_segments(tables, definitions)
-        return (
-            fallback,
-            {
-                "summary": "OPENAI_API_KEY is not configured. Using TF-IDF fallback for segment reconciliation.",
-                "mapping": [],
-                "renames": [],
-            },
+        # Use the grounding_payload directly
+        context_json = json.dumps(grounding_payload, indent=2, ensure_ascii=False)
+        
+        user_prompt = (
+            "Analyze the extracted segments from multiple SEC filings and produce a time-series reconciliation. "
+            "Use the JSON context provided to identify canonical segment names, change types, and detailed rationale.\n\n"
+            f"Context:\n{context_json}"
         )
+    else:
+        # Fallback path for backward compatibility with old calling style (tables, definitions)
+        if not tables or not definitions:
+            return {}, {"summary": "No filings or definitions available.", "mapping": [], "renames": []}
 
-    user_prompt = (
-        "Analyze the extracted segments from multiple SEC filings and produce a time-series reconciliation. "
-        "Use the JSON context provided to identify canonical segment names, change types, and detailed rationale.\n\n"
-        f"Context:\n{_render_context(tables, definitions)}"
-    )
+        if not _openai_api_key():
+            fallback = tfidf_match_segments(tables, definitions)
+            return (
+                fallback,
+                {
+                    "summary": "OPENAI_API_KEY is not configured. Using TF-IDF fallback for segment reconciliation.",
+                    "mapping": [],
+                    "renames": [],
+                },
+            )
+
+        # For backward compatibility, use the old _render_context
+        context_json = _render_context(tables, definitions)
+        
+        user_prompt = (
+            "Analyze the extracted segments from multiple SEC filings and produce a time-series reconciliation. "
+            "Use the JSON context provided to identify canonical segment names, change types, and detailed rationale.\n\n"
+            f"Context:\n{context_json}"
+        )
 
     # Use the new OpenAI client (OpenAI.chat.completions.create)
     client = OpenAI(api_key=_openai_api_key())
@@ -215,7 +252,7 @@ def reconcile_segments(tables, definitions):
             temperature=0.0,
         )
     except AuthenticationError as exc:
-        fallback = tfidf_match_segments(tables, definitions)
+        fallback = tfidf_match_segments(tables or {}, definitions or {})
         return (
             fallback,
             {
@@ -226,7 +263,7 @@ def reconcile_segments(tables, definitions):
             },
         )
     except OpenAIError as exc:
-        fallback = tfidf_match_segments(tables, definitions)
+        fallback = tfidf_match_segments(tables or {}, definitions or {})
         return (
             fallback,
             {
