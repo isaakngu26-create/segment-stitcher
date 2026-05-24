@@ -2,9 +2,14 @@ import json
 import os
 
 try:
+    import openai
     from openai import OpenAI
+    from openai.error import AuthenticationError, OpenAIError
 except Exception:
+    openai = None
     OpenAI = None
+    AuthenticationError = Exception
+    OpenAIError = Exception
 
 from .semantic_matcher import match_segments as tfidf_match_segments
 
@@ -128,19 +133,43 @@ def reconcile_segments(tables, definitions):
 
     # Use the new OpenAI client (OpenAI.chat.completions.create)
     client = OpenAI(api_key=_openai_api_key())
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
-        tools=[{
-            "type": "function",
-            "function": FUNCTION_SCHEMA
-        }],
-        tool_choice={"type": "function", "function": {"name": FUNCTION_SCHEMA["name"]}},
-        temperature=0.0,
-    )
+    try:
+        client = OpenAI(api_key=_openai_api_key())
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            tools=[{
+                "type": "function",
+                "function": FUNCTION_SCHEMA
+            }],
+            tool_choice={"type": "function", "function": {"name": FUNCTION_SCHEMA["name"]}},
+            temperature=0.0,
+        )
+    except AuthenticationError as exc:
+        fallback = tfidf_match_segments(tables, definitions)
+        return (
+            fallback,
+            {
+                "summary": "OpenAI authentication failed. Using TF-IDF fallback. Please check OPENAI_API_KEY in Streamlit secrets.",
+                "mapping": [],
+                "renames": [],
+                "error": str(exc),
+            },
+        )
+    except OpenAIError as exc:
+        fallback = tfidf_match_segments(tables, definitions)
+        return (
+            fallback,
+            {
+                "summary": "OpenAI request failed. Using TF-IDF fallback.",
+                "mapping": [],
+                "renames": [],
+                "error": str(exc),
+            },
+        )
 
     # Response is now a Pydantic model, not a dict
     choice = response.choices[0].message
