@@ -1,0 +1,41 @@
+{
+  "description": "Evaluation set for segment reconciliation and rename detection.",
+  "items": [
+    {
+      "id": "eval_1",
+      "filings": [
+        {
+          "filename": "filing1.pdf",
+          "segments": ["Cloud", "Software"],
+          "definitions": {
+            "Cloud": "Cloud infrastructure services, platform hosting, and data center operations.",
+            "Software": "Enterprise software licenses, maintenance, and SaaS revenue."
+          }
+        },
+        {
+          "filename": "filing2.pdf",
+          "segments": ["Infrastructure", "SaaS"],
+          "definitions": {
+            "Infrastructure": "Data center and cloud platform operations, including hosting services.",
+            "SaaS": "Subscription-based enterprise application software delivered over the internet."
+          }
+        }
+      ],
+      "expected_mapping": [
+        {"filing": "filing1.pdf", "segment": "Cloud", "canonical": "Infrastructure & Cloud"},
+        {"filing": "filing1.pdf", "segment": "Software", "canonical": "Software"},
+        {"filing": "filing2.pdf", "segment": "Infrastructure", "canonical": "Infrastructure & Cloud"},
+        {"filing": "filing2.pdf", "segment": "SaaS", "canonical": "Software"}
+      ],
+      "expected_renames": [
+        {
+          "from_segment": "Cloud",
+          "to_segment": "Infrastructure & Cloud",
+          "from_filing": "filing1.pdf",
+          "to_filing": "filing2.pdf",
+          "explanation": "Cloud infrastructure reporting appears to be renamed to Infrastructure & Cloud in the later filing."
+        }
+      ]
+    }
+  ]
+}

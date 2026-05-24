@@ -33,7 +33,7 @@ streamlit run src/app.py
 
 ## OpenAI integration
 
-If you set `OPENAI_API_KEY` in your environment, the app will use the OpenAI API to perform segment reconciliation using a JSON schema-grounded prompt. If the key is missing, the app falls back to TF-IDF matching.
+If you set `OPENAI_API_KEY` in your environment, the app will use the OpenAI API to perform segment reconciliation using a JSON schema-grounded prompt. If the key is missing or invalid, the app falls back to TF-IDF matching.
 
 Example:
 ```bash
@@ -42,6 +42,19 @@ streamlit run src/app.py
 ```
 
 On Streamlit Community Cloud, add `OPENAI_API_KEY` to the app secrets.
+
+## Evaluation and rubric evidence
+
+This repository now includes an explicit evaluation set and a runnable evaluation script.
+
+- `data/evaluation/segment_reconciliation.json` — gold-labeled example cases for reconciliation and rename detection
+- `evaluation/evaluate_reconciliation.py` — loads the evaluation set, runs the reconciliation pipeline, and reports accuracy
+- `tests/test_evaluation_set.py` — verifies the evaluation set structure
+
+Run evaluation locally with:
+```bash
+python evaluation/evaluate_reconciliation.py
+```
 
 ## Streamlit Cloud deployment
 

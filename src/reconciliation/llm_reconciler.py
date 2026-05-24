@@ -74,6 +74,8 @@ def _render_context(tables, definitions):
         filings.append({
             "filename": filename,
             "segments": table.get("segments", []),
+            "values": table.get("values", []),
+            "rows": table.get("rows", []),
         })
 
     definition_list = []
@@ -96,13 +98,21 @@ def _render_context(tables, definitions):
 
 
 def _parse_function_response(choice_message):
-    # In the new OpenAI SDK, tool calls are in message.tool_calls
-    if not hasattr(choice_message, 'tool_calls') or not choice_message.tool_calls:
-        raise ValueError("No tool call returned from the LLM.")
-    
-    tool_call = choice_message.tool_calls[0]
-    # Arguments might be a string in the new SDK
-    arguments = tool_call.function.arguments
+    function_call = None
+    if isinstance(choice_message, dict):
+        function_call = choice_message.get("function_call")
+    else:
+        function_call = getattr(choice_message, "function_call", None)
+
+    if not function_call:
+        raise ValueError("No function call returned from the LLM.")
+
+    arguments = None
+    if isinstance(function_call, dict):
+        arguments = function_call.get("arguments")
+    else:
+        arguments = getattr(function_call, "arguments", None)
+
     if isinstance(arguments, str):
         arguments = json.loads(arguments)
     return arguments
@@ -141,11 +151,8 @@ def reconcile_segments(tables, definitions):
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            tools=[{
-                "type": "function",
-                "function": FUNCTION_SCHEMA
-            }],
-            tool_choice={"type": "function", "function": {"name": FUNCTION_SCHEMA["name"]}},
+            functions=[FUNCTION_SCHEMA],
+            function_call={"name": FUNCTION_SCHEMA["name"]},
             temperature=0.0,
         )
     except AuthenticationError as exc:
