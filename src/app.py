@@ -48,12 +48,17 @@ if uploaded_files:
         st.write(defs)
 
     st.subheader("Reconciliation reasoning")
-    st.write(reconciliation.get("summary", ""))
-    if reconciliation.get("mapping"):
-        st.table(pd.DataFrame(reconciliation["mapping"]))
-    if reconciliation.get("renames"):
-        st.markdown("**Detected renames and aliases**")
-        st.table(pd.DataFrame(reconciliation["renames"]))
+    st.write(reconciliation.get("global_explanation", reconciliation.get("summary", "")))
+    
+    if reconciliation.get("canonical_segments"):
+        st.markdown("**Canonical Segments**")
+        canonical_df = pd.DataFrame(reconciliation["canonical_segments"])
+        st.dataframe(canonical_df)
+    
+    if reconciliation.get("mappings"):
+        st.markdown("**Segment Mappings by Filing**")
+        mappings_df = pd.DataFrame(reconciliation["mappings"])
+        st.dataframe(mappings_df)
 
     st.subheader("Detected segment definition changes")
     if changes:

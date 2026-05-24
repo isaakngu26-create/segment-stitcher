@@ -13,50 +13,107 @@ except Exception:
 
 from .semantic_matcher import match_segments as tfidf_match_segments
 
-SYSTEM_PROMPT = """
-You are an expert financial analyst specializing in SEC segment reporting.
-You will receive segment names and segment definitions extracted from multiple filings.
-Use those definitions to identify canonical segment labels, detect value renames, and explain the reasoning in plain English.
-Return the result via the defined function schema only, without extra prose.
+SYSTEM_PROMPT = """You are Segment Stitcher, an expert financial reporting analyst specializing in SEC segment disclosures.
+
+Your job:
+- Take extracted segment information from multiple 10-K/10-Q filings for the same company over time.
+- Infer how management's reportable segments have changed (renames, splits, merges, reclassifications, discontinued operations).
+- Produce a consistent, time-series view of segments and a mapping from each original segment label to a canonical segment name.
+
+Context you will receive:
+- A structured JSON object with:
+  - company_name: string
+  - filings: array of filings, each with:
+    - filing_id: string (e.g., "2022 10-K")
+    - period_end: string (ISO date)
+    - segments: array of segments, each with:
+      - label: string (segment name as reported)
+      - revenue: number or null
+      - operating_income: number or null
+      - other_metrics: object (key-value pairs, may be empty)
+- The filings are already ordered from oldest to newest.
+
+Your tasks:
+1. Analyze how segment labels evolve over time.
+2. Identify likely:
+   - Renames (same business, new label)
+   - Splits (one segment becomes multiple)
+   - Merges (multiple segments combined)
+   - Discontinued or immaterial segments
+3. Define a set of canonical_segment_names that best represent the economic reality over time.
+4. Map each original segment label in each filing to:
+   - a canonical_segment_name, and
+   - a change_type: one of ["unchanged", "rename", "split", "merge", "discontinued", "new"].
+5. Explain your reasoning in concise natural language, focusing on:
+   - evidence from metrics (revenue, operating income, trends)
+   - wording similarities in labels
+   - appearance/disappearance patterns across years.
+
+Output format (MUST be valid JSON):
+{
+  "canonical_segments": [
+    {
+      "canonical_segment_name": string,
+      "description": string
+    }
+  ],
+  "mappings": [
+    {
+      "filing_id": string,
+      "original_label": string,
+      "canonical_segment_name": string,
+      "change_type": "unchanged" | "rename" | "split" | "merge" | "discontinued" | "new",
+      "rationale": string
+    }
+  ],
+  "global_explanation": string
+}
+
+Constraints and style:
+- Be conservative: do not force a mapping if evidence is weak; in that case, set canonical_segment_name to "Unclear" and explain why.
+- Never invent numeric values; only reason from the metrics provided.
+- Prefer stable canonical names that make sense to a financial analyst.
+- Keep rationales short but specific (1–3 sentences).
+- If filings are inconsistent or incomplete, explicitly call that out in global_explanation.
 """
 
 FUNCTION_SCHEMA = {
     "name": "reconcile_segments",
-    "description": "Map segment labels to canonical names and identify renames across filings.",
+    "description": "Map segment labels to canonical names and identify change types across filings.",
     "parameters": {
         "type": "object",
         "properties": {
-            "mapping": {
+            "canonical_segments": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "filing": {"type": "string"},
-                        "segment": {"type": "string"},
-                        "canonical": {"type": "string"},
-                        "confidence": {"type": "number"},
+                        "canonical_segment_name": {"type": "string"},
+                        "description": {"type": "string"},
+                    },
+                    "required": ["canonical_segment_name", "description"],
+                },
+            },
+            "mappings": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "filing_id": {"type": "string"},
+                        "original_label": {"type": "string"},
+                        "canonical_segment_name": {"type": "string"},
+                        "change_type": {
+                            "type": "string",
+                            "enum": ["unchanged", "rename", "split", "merge", "discontinued", "new"],
+                        },
                         "rationale": {"type": "string"},
                     },
-                    "required": ["filing", "segment", "canonical", "confidence", "rationale"],
+                    "required": ["filing_id", "original_label", "canonical_segment_name", "change_type", "rationale"],
                 },
             },
-            "renames": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "from_segment": {"type": "string"},
-                        "to_segment": {"type": "string"},
-                        "from_filing": {"type": "string"},
-                        "to_filing": {"type": "string"},
-                        "explanation": {"type": "string"},
-                    },
-                    "required": ["from_segment", "to_segment", "from_filing", "to_filing", "explanation"],
-                },
-            },
-            "summary": {"type": "string"},
+            "global_explanation": {"type": "string"},
         },
-        "required": ["mapping"],
+        "required": ["canonical_segments", "mappings", "global_explanation"],
     },
 }
 
@@ -71,26 +128,30 @@ def _openai_api_key():
 def _render_context(tables, definitions):
     filings = []
     for filename, table in tables.items():
-        filings.append({
-            "filename": filename,
-            "segments": table.get("segments", []),
-            "values": table.get("values", []),
-            "rows": table.get("rows", []),
-        })
-
-    definition_list = []
-    for filename, defs in definitions.items():
-        for label, definition in defs.items():
-            definition_list.append({
-                "filename": filename,
-                "label": label,
-                "definition": definition,
-            })
-
+        segments = []
+        segment_list = table.get("segments", [])
+        values = table.get("values", [])
+        
+        for i, segment_label in enumerate(segment_list):
+            segment_obj = {
+                "label": segment_label,
+                "revenue": values[i] if i < len(values) else None,
+                "operating_income": None,
+                "other_metrics": {},
+            }
+            segments.append(segment_obj)
+        
+        filing_obj = {
+            "filing_id": filename,
+            "period_end": table.get("period", "Unknown"),
+            "segments": segments,
+        }
+        filings.append(filing_obj)
+    
     return json.dumps(
         {
+            "company_name": "Unknown",
             "filings": filings,
-            "definitions": definition_list,
         },
         indent=2,
         ensure_ascii=False,
@@ -134,10 +195,8 @@ def reconcile_segments(tables, definitions):
         )
 
     user_prompt = (
-        "Map the segment names in the filings to canonical segment names using the definitions. "
-        "If a segment name is a rename or alias of another filing's segment, use the same canonical label. "
-        "If no safe match exists, preserve the original segment label. "
-        "Return the JSON payload using the declared function schema only.\n\n"
+        "Analyze the extracted segments from multiple SEC filings and produce a time-series reconciliation. "
+        "Use the JSON context provided to identify canonical segment names, change types, and detailed rationale.\n\n"
         f"Context:\n{_render_context(tables, definitions)}"
     )
 
@@ -181,15 +240,21 @@ def reconcile_segments(tables, definitions):
     # Response is now a Pydantic model, not a dict
     choice = response.choices[0].message
     payload = _parse_function_response(choice)
-    mapping_outputs = payload.get("mapping", [])
-    canonical_map = {
-        item["segment"]: item["canonical"] for item in mapping_outputs
-    }
+    
+    # Build a simple canonical map for backward compatibility with the app
+    mappings = payload.get("mappings", [])
+    canonical_map = {}
+    for mapping in mappings:
+        original_label = mapping.get("original_label")
+        canonical_name = mapping.get("canonical_segment_name")
+        if original_label and canonical_name:
+            canonical_map[original_label] = canonical_name
 
     return canonical_map, {
-        "summary": payload.get("summary", "OpenAI provided reconciliation results."),
-        "mapping": mapping_outputs,
-        "renames": payload.get("renames", []),
+        "canonical_segments": payload.get("canonical_segments", []),
+        "mappings": mappings,
+        "global_explanation": payload.get("global_explanation", ""),
+        "summary": payload.get("global_explanation", "OpenAI provided reconciliation results."),
     }
 
 
